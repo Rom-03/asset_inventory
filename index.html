@@ -509,7 +509,7 @@
     let storage = JSON.parse(localStorage.getItem('myAssets')) || { devices: [], branch: [], hub: [], cctv: [] };
     let currentCctvFilter = 'admin'; 
 
-    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwD_4LU_EB8gnJIo9MouE8t6BxN-Si7r6kc3whmrf_yktDGrXxU3EdgcTUm4FMLiN3XFg/exec';
+    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxwzhCVnCMTX0lwZuJiNyUyWn0CgbyDSPB_ZRGRNwvZdO3DoQT-0l5YDHRB8I3yx0lnfQ/exec';
 
     function save() { localStorage.setItem('myAssets', JSON.stringify(storage)); }
     
@@ -840,12 +840,40 @@
         reader.readAsText(file);
     }
 
+    // --- NEW AUTO-SYNC FROM CLOUD LOGIC ---
+    async function loadFromCloud() {
+        const tId = showToast("Syncing with cloud...", "syncing");
+        try {
+            // AppScript needs to handle GET requests to return data
+            const response = await fetch(SHEETS_WEB_APP_URL);
+            const cloudData = await response.json();
+            
+            if (cloudData && cloudData.devices) {
+                storage = cloudData;
+                save();
+                ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
+                removeToast(tId);
+                showToast("Cloud data loaded", "success");
+            }
+        } catch (e) {
+            console.error("Auto-sync load error:", e);
+            removeToast(tId);
+            // We don't show an error toast here to avoid annoying users if they are offline
+        }
+    }
+
     window.onload = () => {
         initForm('form-device', 'devices', 'modal-device');
         initForm('form-branch', 'branch', 'modal-branch');
         initForm('form-hub', 'hub', 'modal-hub');
         initForm('form-cctv', 'cctv', 'modal-cctv');
+        
+        // Load local first for speed
         ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
+        
+        // Then pull from cloud to update
+        loadFromCloud();
+
         const hash = window.location.hash.substring(1);
         if (hash && document.getElementById(hash)) openTab(hash);
         else openTab('dashboard');
