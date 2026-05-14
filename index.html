@@ -544,7 +544,16 @@
 
     async function syncSheets(tabName, rowData, method = "SAVE") {
         if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('YOUR_WEB_APP')) return;
-        const uid = rowData.serial || rowData.code; 
+        
+        // Define unique ID for Sheets sync
+        let uid;
+        if (tabName === 'cctv') {
+            // For CCTV, combine code and type so Admin and User are saved separately
+            uid = `${rowData.code}-${rowData.type}`.trim();
+        } else {
+            uid = (rowData.serial || rowData.code).trim();
+        }
+
         try {
             await fetch(SHEETS_WEB_APP_URL, {
                 method: 'POST',
@@ -840,11 +849,9 @@
         reader.readAsText(file);
     }
 
-    // --- NEW AUTO-SYNC FROM CLOUD LOGIC ---
     async function loadFromCloud() {
         const tId = showToast("Syncing with cloud...", "syncing");
         try {
-            // AppScript needs to handle GET requests to return data
             const response = await fetch(SHEETS_WEB_APP_URL);
             const cloudData = await response.json();
             
@@ -858,7 +865,6 @@
         } catch (e) {
             console.error("Auto-sync load error:", e);
             removeToast(tId);
-            // We don't show an error toast here to avoid annoying users if they are offline
         }
     }
 
@@ -868,10 +874,8 @@
         initForm('form-hub', 'hub', 'modal-hub');
         initForm('form-cctv', 'cctv', 'modal-cctv');
         
-        // Load local first for speed
         ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
         
-        // Then pull from cloud to update
         loadFromCloud();
 
         const hash = window.location.hash.substring(1);
