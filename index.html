@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Inventory Dashboard</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #0f172a;
+            --danger: #ef4444;
+            --secondary: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-links { display: flex; gap: 0.5rem; }
+        .nav-link {
+            background: none; border: none; padding: 0.5rem 1rem;
+            cursor: pointer; font-weight: 500; color: var(--secondary);
+            border-radius: 6px; transition: all 0.2s;
+        }
+        .nav-link:hover { background: #f8fafc; color: var(--primary); }
+        .nav-link.active { background: #eff6ff; color: var(--primary); }
+
+        .mobile-admin-actions { display: none; flex-direction: column; gap: 5px; padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border); }
+        .mobile-admin-actions .nav-link { color: var(--text); }
+        .mobile-admin-actions .btn-reset-nav { color: var(--danger); }
+
+        .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: none; border: none; }
+        .hamburger span { width: 25px; height: 3px; background-color: var(--text); border-radius: 2px; transition: 0.3s; }
+
+        .container { padding: 1.5rem; flex-grow: 1; overflow-y: auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+
+        .type-switch {
+            display: flex;
+            background: #e2e8f0;
+            padding: 2px;
+            border-radius: 8px;
+            margin-right: 5px;
+        }
+        .switch-btn {
+            border: none;
+            background: none;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--secondary);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: 0.2s;
+        }
+        .switch-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .search-box {
+            padding: 0.6rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            width: 220px;
+            outline: none;
+            background: white;
+        }
+        .search-box:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .stat-card {
+            background: white; padding: 1.5rem; border-radius: 12px;
+            border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .stat-label { color: var(--secondary); font-size: 0.875rem; font-weight: 600; }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); margin-top: 0.5rem; }
+
+        .admin-actions {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .table-container { 
+            background: white; border-radius: 12px; border: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; 
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 1100px; }
+        th { padding: 1rem; font-size: 0.75rem; text-transform: uppercase; color: var(--secondary); border-bottom: 1px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.875rem; }
+
+        .cctv-link { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .cctv-link:hover { text-decoration: underline; }
+
+        .copyable { cursor: pointer; position: relative; transition: color 0.2s; }
+        .copyable:hover { color: var(--primary); text-decoration: underline dotted; }
+        .copyable:active { transform: scale(0.98); }
+
+        .modal {
+            display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background-color: var(--card); padding: 2rem; width: 90%; max-width: 450px;
+            border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+
+        .pin-input {
+            font-size: 2rem; text-align: center; letter-spacing: 1.5rem; padding-left: 1.5rem;
+            margin: 1.5rem 0; border: 2px solid var(--border); background: #f8fafc;
+        }
+        .pin-input:focus { border-color: var(--danger); }
+
+        .form-part { display: none; }
+        .form-part.active { display: block; animation: fadeIn 0.3s ease; }
+
+        .input-group { position: relative; margin-bottom: 1rem; }
+        .input-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--secondary); margin-bottom: 0.25rem; margin-left: 0.25rem; }
+
+        input, select, textarea {
+            width: 100%; padding: 0.75rem; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.95rem; background: #f8fafc;
+            box-sizing: border-box; transition: 0.2s;
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 2rem; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-nav { background: #e2e8f0; color: var(--text); border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-edit { color: var(--primary); background: none; border: none; cursor: pointer; margin-right: 10px; font-weight: bold; }
+        .btn-delete { color: var(--danger); background: none; border: none; cursor: pointer; font-weight: bold; }
+        
+        .btn-export { background: var(--success); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-import { background: var(--secondary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-reset { background: var(--danger); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; cursor: pointer; font-weight: 600; }
+
+        #custom-confirm .modal-content { text-align: center; max-width: 380px; }
+        #custom-confirm h3 { margin-top: 0; color: var(--text); }
+        #custom-confirm p { color: var(--secondary); font-size: 0.9rem; line-height: 1.5; }
+        .confirm-actions { display: flex; gap: 10px; margin-top: 1.5rem; }
+        .confirm-actions button { flex: 1; padding: 0.75rem; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }
+        .btn-confirm-yes { background: var(--danger); color: white; }
+        .btn-confirm-no { background: #e2e8f0; color: var(--text); }
+
+        #toast-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            background: var(--text); color: white; padding: 12px 20px;
+            border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex; align-items: center; gap: 12px; font-size: 0.875rem;
+            animation: slideIn 0.3s ease forwards; min-width: 200px;
+        }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.syncing { border-left: 4px solid var(--primary); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        
+        .toast-spinner {
+            width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid white; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .hamburger { display: flex; }
+            .nav-links {
+                display: none; flex-direction: column; position: absolute;
+                top: 60px; left: 0; width: 100%; background: var(--card);
+                border-bottom: 1px solid var(--border); padding: 1rem;
+                box-sizing: border-box; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            }
+            .nav-links.mobile-open { display: flex; }
+            .mobile-admin-actions { display: flex; }
+            .nav-link { width: 100%; text-align: left; padding: 1rem; }
+            .section-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .header-actions { width: 100%; flex-wrap: wrap; }
+            .search-box { flex-grow: 1; min-width: 150px; }
+            .admin-actions { display: none; }
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<header>
+    <div style="font-size: 1.25rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px;">ASSETLOG.</div>
+    <button class="hamburger" onclick="toggleMenu()">
+        <span></span><span></span><span></span>
+    </button>
+    <nav class="nav-links" id="navLinks">
+        <button class="nav-link active" onclick="openTab('dashboard')">Dashboard</button>
+        <button class="nav-link" onclick="openTab('devices')">Devices</button>
+        <button class="nav-link" onclick="openTab('branch')">Branch</button>
+        <button class="nav-link" onclick="openTab('hub')">Hub</button>
+        <button class="nav-link" onclick="openTab('cctv')">CCTV</button>
+        
+        <div class="mobile-admin-actions">
+            <button class="nav-link" onclick="exportData()">💾 Export JSON</button>
+            <button class="nav-link" onclick="document.getElementById('importFile').click(); toggleMenu();">📂 Import JSON</button>
+            <button class="nav-link btn-reset-nav" onclick="openPinModal(); toggleMenu();">⚠️ Reset All Data</button>
+        </div>
+    </nav>
+</header>
+
+<div class="container">
+    <div id="dashboard" class="tab-content active">
+        <h2>Dashboard</h2>
+        <p style="color: var(--secondary); margin-bottom: 2rem;">System overview and asset status.</p>
+        
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Total Devices</div><div id="stat-devices" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">Branches</div><div id="stat-branch" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">Hubs</div><div id="stat-hub" class="stat-value">0</div></div>
+            <div class="stat-card"><div class="stat-label">CCTV (Admin/User)</div><div id="stat-cctv" class="stat-value">0 / 0</div></div>
+        </div>
+
+        <h3 style="margin-top: 2.5rem; margin-bottom: 1rem;">Asset Health & Analysis</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">SOTI Management</div>
+                <div id="soti-analysis" style="margin-top: 10px; font-size: 0.85rem; line-height: 1.6;"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">OS Distribution</div>
+                <div id="os-breakdown" style="margin-top: 10px; font-size: 0.85rem; line-height: 1.6;"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Data Integrity</div>
+                <div id="health-check-list" style="margin-top: 10px; font-size: 0.85rem; line-height: 1.6;"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Credential Gaps</div>
+                <div id="credential-check" style="margin-top: 10px; font-size: 0.85rem; line-height: 1.6; max-height: 150px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <div class="admin-actions">
+            <button class="btn-export" onclick="exportData()">Export JSON</button>
+            <button class="btn-import" onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <button class="btn-reset" onclick="openPinModal()">Reset All Data</button>
+        </div>
+        
+        <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+    </div>
+
+    <!-- DEVICES -->
+    <div id="devices" class="tab-content">
+        <div class="section-header">
+            <h2>Devices</h2>
+            <div class="header-actions">
+                <input type="text" class="search-box" placeholder="Search devices..." oninput="renderTable('devices')">
+                <button class="btn-add" onclick="openModal('modal-device')">+ New Device</button>
+            </div>
+        </div>
+        <div class="table-container"><table><thead><tr><th>Branch</th><th>Brand</th><th>Model</th><th>Serial</th><th>Type</th><th>OS</th><th>IP</th><th>UPS</th><th>SOTI</th><th>SOTI Type</th><th>Remarks</th><th>Actions</th></tr></thead><tbody id="table-devices"></tbody></table></div>
+    </div>
+
+    <!-- BRANCH -->
+    <div id="branch" class="tab-content">
+        <div class="section-header">
+            <h2>Branches</h2>
+            <div class="header-actions">
+                <input type="text" class="search-box" placeholder="Search branches..." oninput="renderTable('branch')">
+                <button class="btn-add" onclick="openModal('modal-branch')">+ New Branch</button>
+            </div>
+        </div>
+        <div class="table-container"><table><thead><tr><th>Code</th><th>Name</th><th>ISP</th><th>CCTV</th><th>Mikrotik</th><th>Modern SOTI</th><th>Team Head</th><th>Remarks</th><th>Actions</th></tr></thead><tbody id="table-branch"></tbody></table></div>
+    </div>
+
+    <!-- HUB -->
+    <div id="hub" class="tab-content">
+        <div class="section-header">
+            <h2>Hubs</h2>
+            <div class="header-actions">
+                <input type="text" class="search-box" placeholder="Search hubs..." oninput="renderTable('hub')">
+                <button class="btn-add" onclick="openModal('modal-hub')">+ New Hub</button>
+            </div>
+        </div>
+        <div class="table-container"><table><thead><tr><th>Code</th><th>Name</th><th>ISP</th><th>CCTV</th><th>Mikrotik</th><th>Face Recog</th><th>Face IP</th><th>Remarks</th><th>Actions</th></tr></thead><tbody id="table-hub"></tbody></table></div>
+    </div>
+
+    <!-- CCTV -->
+    <div id="cctv" class="tab-content">
+        <div class="section-header">
+            <h2>CCTV</h2>
+            <div class="header-actions">
+                <div class="type-switch" id="cctv-type-filter">
+                    <button class="switch-btn active" onclick="setCctvFilter('admin')">Admin</button>
+                    <button class="switch-btn" onclick="setCctvFilter('user')">User</button>
+                </div>
+                <input type="text" class="search-box" placeholder="Search CCTV..." oninput="renderTable('cctv')">
+                <button class="btn-add" onclick="openModal('modal-cctv')">+ New CCTV</button>
+            </div>
+        </div>
+        <div class="table-container"><table><thead><tr><th>Branch Code</th><th>Branch Name</th><th>IP Address</th><th>Username</th><th>Password</th><th>Type</th><th>Remarks</th><th>Actions</th></tr></thead><tbody id="table-cctv"></tbody></table></div>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div id="modal-device" class="modal"><div class="modal-content">
+    <h3>Device Information</h3>
+    <form id="form-device">
+        <input type="hidden" name="editIndex" value="-1">
+        <div class="form-part active" id="device-part-1">
+            <div class="input-group"><label>Branch Code</label><input type="text" name="bcode" required></div>
+            <div class="input-group"><label>Brand</label><input type="text" name="brand" required></div>
+            <div class="input-group"><label>Model</label><input type="text" name="model" required></div>
+            <div class="input-group"><label>Serial Number</label><input type="text" name="serial" required></div>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="closeModal('modal-device')">Cancel</button>
+                <button type="button" class="btn-nav" onclick="nextPart('device', 2)">Next Step</button>
+            </div>
+        </div>
+        <div class="form-part" id="device-part-2">
+            <div class="input-group"><label>Type</label><select name="type"><option>workstation</option><option>server</option></select></div>
+            <div class="input-group"><label>OS</label><select name="os"><option>win 11</option><option>win 10</option><option>win 7</option></select></div>
+            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:10px">
+                <div class="input-group"><label>IP Address</label><input type="text" name="ip"></div>
+                <div class="input-group"><label>UPS</label><select name="ups"><option value="yes">yes</option><option value="no">no</option></select></div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                <div class="input-group"><label>SOTI</label><select name="soti"><option value="yes">yes</option><option value="no">no</option></select></div>
+                <div class="input-group"><label>SOTI Type</label><select name="sotiType"><option value="modern">modern</option><option value="classic">classic</option></select></div>
+            </div>
+            <textarea name="remarks" placeholder="Remarks..."></textarea>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="nextPart('device', 1)">Back</button>
+                <button type="submit" class="btn-save">Save Asset</button>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+<div id="modal-branch" class="modal"><div class="modal-content">
+    <h3>Branch Details</h3>
+    <form id="form-branch">
+        <input type="hidden" name="editIndex" value="-1">
+        <div class="form-part active" id="branch-part-1">
+            <div class="input-group"><label>Code</label><input type="text" name="code" required></div>
+            <div class="input-group"><label>Name</label><input type="text" name="name" required></div>
+            <div class="input-group">
+                <label>ISP</label>
+                <select name="isp">
+                    <option value="">- Select ISP -</option>
+                    <option value="PLDT">PLDT</option>
+                    <option value="GLOBE">GLOBE</option>
+                    <option value="CONVERGE">CONVERGE</option>
+                    <option value="Others">Others</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="closeModal('modal-branch')">Cancel</button>
+                <button type="button" class="btn-nav" onclick="nextPart('branch', 2)">Next</button>
+            </div>
+        </div>
+        <div class="form-part" id="branch-part-2">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px"><div class="input-group"><label>CCTV</label><select name="cctv"><option>yes</option><option>no</option></select></div><div class="input-group"><label>Mikrotik</label><select name="mikrotik"><option>yes</option><option>no</option></select></div></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                <div class="input-group"><label>Modern SOTI</label><select name="modernSoti"><option value="no">no</option><option value="yes">yes</option></select></div>
+                <div class="input-group"><label>Team Head</label><input type="text" name="teamHead" placeholder="Name"></div>
+            </div>
+            <textarea name="remarks" placeholder="Remarks..."></textarea>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="nextPart('branch', 1)">Back</button>
+                <button type="submit" class="btn-save">Save Branch</button>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+<div id="modal-hub" class="modal"><div class="modal-content">
+    <h3>Hub Details</h3>
+    <form id="form-hub">
+        <input type="hidden" name="editIndex" value="-1">
+        <div class="form-part active" id="hub-part-1">
+            <div class="input-group"><label>Hub Code</label><input type="text" name="code" required></div>
+            <div class="input-group"><label>Hub Name</label><input type="text" name="name" required></div>
+            <div class="input-group">
+                <label>ISP</label>
+                <select name="isp">
+                    <option value="">- Select ISP -</option>
+                    <option value="PLDT">PLDT</option>
+                    <option value="GLOBE">GLOBE</option>
+                    <option value="CONVERGE">CONVERGE</option>
+                    <option value="Others">Others</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="closeModal('modal-hub')">Cancel</button>
+                <button type="button" class="btn-nav" onclick="nextPart('hub', 2)">Next</button>
+            </div>
+        </div>
+        <div class="form-part" id="hub-part-2">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px"><div class="input-group"><label>CCTV</label><select name="cctv"><option>yes</option><option>no</option></select></div><div class="input-group"><label>Mikrotik</label><select name="mikrotik"><option>yes</option><option>no</option></select></div></div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px"><div class="input-group"><label>Face Recog</label><select name="faceRecog"><option value="no">no</option><option value="yes">yes</option></select></div><div class="input-group"><label>Face IP</label><input type="text" name="faceIp" placeholder="0.0.0.0"></div></div>
+            <textarea name="remarks" placeholder="Remarks..."></textarea>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="nextPart('hub', 1)">Back</button>
+                <button type="submit" class="btn-save">Save Hub</button>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+<div id="modal-cctv" class="modal"><div class="modal-content">
+    <h3>CCTV Access</h3>
+    <form id="form-cctv">
+        <input type="hidden" name="editIndex" value="-1">
+        <div class="form-part active" id="cctv-part-1">
+            <div class="input-group"><label>Code</label><input type="text" name="code" required></div>
+            <div class="input-group"><label>Name</label><input type="text" name="name" required></div>
+            <div class="input-group"><label>IP</label><input type="text" name="ip"></div>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="closeModal('modal-cctv')">Cancel</button>
+                <button type="button" class="btn-nav" onclick="nextPart('cctv', 2)">Next</button>
+            </div>
+        </div>
+        <div class="form-part" id="cctv-part-2">
+            <div class="input-group"><label>User</label><input type="text" name="user"></div>
+            <div class="input-group"><label>Pass</label><input type="password" name="pass"></div>
+            <div class="input-group"><label>Type</label>
+                <select name="type">
+                    <option value="admin">admin</option>
+                    <option value="user">user</option>
+                </select>
+            </div>
+            <textarea name="remarks" placeholder="Remarks..."></textarea>
+            <div class="form-actions">
+                <button type="button" class="btn-nav" onclick="nextPart('cctv', 1)">Back</button>
+                <button type="submit" class="btn-save">Save</button>
+            </div>
+        </div>
+    </form>
+</div></div>
+
+<div id="modal-pin" class="modal">
+    <div class="modal-content" style="text-align: center; max-width: 320px;">
+        <div style="background: #fee2e2; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: var(--danger); font-size: 1.5rem;">🔒</div>
+        <h3 style="margin: 0;">Security Verification</h3>
+        <p style="font-size: 0.85rem; color: var(--secondary);">Please enter the 4-digit administrator PIN to reset all system data.</p>
+        <input type="password" id="reset-pin-field" class="pin-input" maxlength="4" placeholder="••••" autocomplete="off">
+        <div class="form-actions" style="justify-content: stretch;">
+            <button class="btn-nav" style="flex: 1;" onclick="closeModal('modal-pin')">Cancel</button>
+            <button class="btn-reset" style="flex: 1;" onclick="verifyPin()">Reset Data</button>
+        </div>
+    </div>
+</div>
+
+<div id="custom-confirm" class="modal">
+    <div class="modal-content">
+        <h3 id="confirm-title">Are you sure?</h3>
+        <p id="confirm-msg">This action cannot be undone.</p>
+        <div class="confirm-actions">
+            <button class="btn-confirm-no" onclick="closeConfirm()">Cancel</button>
+            <button class="btn-confirm-yes" id="confirm-yes-btn">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let storage = JSON.parse(localStorage.getItem('myAssets')) || { devices: [], branch: [], hub: [], cctv: [] };
+    let currentCctvFilter = 'admin'; 
+
+    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwD_4LU_EB8gnJIo9MouE8t6BxN-Si7r6kc3whmrf_yktDGrXxU3EdgcTUm4FMLiN3XFg/exec';
+
+    function save() { localStorage.setItem('myAssets', JSON.stringify(storage)); }
+    
+    function showToast(message, type = 'syncing') {
+        const container = document.getElementById('toast-container');
+        const id = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.id = id;
+        let icon = '';
+        if (type === 'syncing') icon = '<div class="toast-spinner"></div>';
+        else if (type === 'success') icon = '✓';
+        else if (type === 'error') icon = '⚠';
+        toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+        container.appendChild(toast);
+        if (type !== 'syncing') {
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        return id;
+    }
+
+    function removeToast(id) {
+        const toast = document.getElementById(id);
+        if (toast) {
+            toast.style.animation = 'slideIn 0.3s ease reverse forwards';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }
+
+    async function syncSheets(tabName, rowData, method = "SAVE") {
+        if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('YOUR_WEB_APP')) return;
+        const uid = rowData.serial || rowData.code; 
+        try {
+            await fetch(SHEETS_WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tab: tabName, uid: uid, row: rowData, method: method })
+            });
+        } catch (e) { console.error("Sync Error:", e); }
+    }
+
+    function showConfirm(title, msg, onConfirm) {
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-msg').innerText = msg;
+        document.getElementById('custom-confirm').style.display = 'flex';
+        document.getElementById('confirm-yes-btn').onclick = () => {
+            onConfirm();
+            closeConfirm();
+        };
+    }
+
+    function closeConfirm() { document.getElementById('custom-confirm').style.display = 'none'; }
+    function toggleMenu() { document.getElementById('navLinks').classList.toggle('mobile-open'); }
+
+    function openTab(id) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+        const targetTab = document.getElementById(id);
+        if(targetTab) {
+            targetTab.classList.add('active');
+            window.history.replaceState(null, null, "#" + id);
+        }
+        document.getElementById('navLinks').classList.remove('mobile-open');
+        document.querySelectorAll(`.nav-link[onclick="openTab('${id}')"]`).forEach(el => el.classList.add('active'));
+        updateStats();
+    }
+
+    function setCctvFilter(type) {
+        currentCctvFilter = type;
+        const btns = document.querySelectorAll('#cctv-type-filter .switch-btn');
+        btns.forEach(btn => {
+            btn.classList.remove('active');
+            if(btn.innerText.toLowerCase() === type) btn.classList.add('active');
+        });
+        renderTable('cctv');
+    }
+
+    function copyToClipboard(text) {
+        if (!text || text === '-') return;
+        navigator.clipboard.writeText(text).then(() => {
+            showToast("Copied to clipboard!", "success");
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+        });
+    }
+
+    function updateStats() {
+        document.getElementById('stat-devices').innerText = storage.devices.length;
+        document.getElementById('stat-branch').innerText = storage.branch.length;
+        document.getElementById('stat-hub').innerText = storage.hub.length;
+        
+        const adminCount = storage.cctv.filter(c => c.type === 'admin').length;
+        const userCount = storage.cctv.filter(c => c.type === 'user').length;
+        document.getElementById('stat-cctv').innerText = `${adminCount} / ${userCount}`;
+        
+        renderDashboardInsights();
+    }
+
+    function renderDashboardInsights() {
+        const sotiList = document.getElementById('soti-analysis');
+        let sotiModern = 0, sotiClassic = 0, sotiNo = 0;
+        storage.devices.forEach(d => {
+            if (d.soti === 'yes') {
+                if (d.sotiType === 'modern') sotiModern++;
+                else if (d.sotiType === 'classic') sotiClassic++;
+            } else sotiNo++;
+        });
+        sotiList.innerHTML = `<span style="color:var(--success)">●</span> <b>Modern:</b> ${sotiModern}<br><span style="color:var(--primary)">●</span> <b>Classic:</b> ${sotiClassic}<br><span style="color:var(--danger)">●</span> <b>No SOTI:</b> ${sotiNo}`;
+
+        const osList = document.getElementById('os-breakdown');
+        const osCounts = {};
+        storage.devices.forEach(d => { const os = d.os || "Unknown"; osCounts[os] = (osCounts[os] || 0) + 1; });
+        osList.innerHTML = Object.entries(osCounts).map(([os, count]) => `<b>${os}:</b> ${count}`).join('<br>') || "No devices found.";
+
+        const healthList = document.getElementById('health-check-list');
+        let issues = [];
+        const missingDeviceIP = storage.devices.filter(d => !d.ip || d.ip === "").length;
+        const missingBranchISP = storage.branch.filter(b => !b.isp || b.isp === "").length;
+        if (missingDeviceIP > 0) issues.push(`<span style="color:var(--danger)">●</span> ${missingDeviceIP} missing IP`);
+        if (missingBranchISP > 0) issues.push(`<span style="color:var(--danger)">●</span> ${missingBranchISP} missing ISP`);
+        healthList.innerHTML = issues.length === 0 ? `<span style="color:var(--success)">●</span> All data complete!` : issues.join('<br>');
+
+        const credList = document.getElementById('credential-check');
+        let credIssues = [];
+        const combined = [...storage.branch.map(b => ({...b, type: 'Branch'})), ...storage.hub.map(h => ({...h, type: 'Hub'}))];
+        combined.forEach(item => {
+            let missing = [];
+            if (item.cctv !== 'yes') missing.push('CCTV');
+            if (item.mikrotik !== 'yes') missing.push('Mikrotik');
+            
+            if (item.type === 'Branch') {
+                if (item.modernSoti !== 'yes') missing.push('SOTI');
+            } else {
+                if (item.faceRecog !== 'yes') missing.push('Face');
+            }
+
+            if (missing.length > 0) {
+                credIssues.push(`<span style="color:var(--danger)">●</span> <b>${item.code}</b> (${missing.join(', ')})`);
+            }
+        });
+        credList.innerHTML = credIssues.length === 0 ? `<span style="color:var(--success)">●</span> All credentials set!` : credIssues.join('<br>');
+    }
+
+    function renderTable(key) {
+        const tbody = document.getElementById(`table-${key}`);
+        if(!tbody) return;
+        const searchTerm = document.querySelector(`#${key} .search-box`)?.value.toLowerCase() || "";
+        tbody.innerHTML = '';
+        storage[key].forEach((item, index) => {
+            if (key === 'cctv' && item.type !== currentCctvFilter) return;
+            const matches = Object.values(item).some(val => String(val).toLowerCase().includes(searchTerm));
+            if (matches || searchTerm === "") {
+                const row = tbody.insertRow();
+                Object.keys(item).forEach(k => { 
+                    if(k !== 'editIndex') {
+                        const cell = row.insertCell();
+                        if (key === 'cctv') {
+                            if (k === 'ip' && item[k]) {
+                                const rawUrl = item[k];
+                                const linkUrl = rawUrl.startsWith('http') ? rawUrl : `http://${rawUrl}`;
+                                cell.innerHTML = `<a href="${linkUrl}" target="_blank" class="cctv-link">${rawUrl}</a>`;
+                            } else if ((k === 'user' || k === 'pass') && item[k]) {
+                                cell.innerHTML = `<span class="copyable" onclick="copyToClipboard('${item[k]}')">${item[k]}</span>`;
+                            } else {
+                                cell.innerText = item[k] || '-';
+                            }
+                        } else {
+                            cell.innerText = item[k] || '-';
+                        }
+                    }
+                });
+                const actionCell = row.insertCell();
+                actionCell.innerHTML = `<button class="btn-edit" onclick="editItem('${key}', ${index})">Edit</button><button class="btn-delete" onclick="handleDeleteItem('${key}', ${index})">Delete</button>`;
+            }
+        });
+        updateStats();
+    }
+
+    function handleDeleteItem(key, index) {
+        showConfirm("Confirm Deletion", "Are you sure you want to remove this entry?", async () => {
+            const item = storage[key][index];
+            const tId = showToast("Deleting entry...", "syncing");
+            syncSheets(key, item, "DELETE").then(() => {
+                removeToast(tId);
+                showToast("Deleted from cloud", "success");
+            }); 
+            storage[key].splice(index, 1); 
+            save(); 
+            renderTable(key);
+        });
+    }
+
+    function nextPart(key, step) {
+        document.querySelectorAll(`#modal-${key} .form-part`).forEach(p => p.classList.remove('active'));
+        document.getElementById(`${key}-part-${step}`).classList.add('active');
+    }
+
+    function openModal(id) { 
+        const m = document.getElementById(id);
+        const key = id.split('-')[1];
+        m.querySelector('form').reset();
+        m.querySelector('[name="editIndex"]').value = "-1";
+        if(document.getElementById(`${key}-part-1`)) nextPart(key, 1);
+        m.style.display = "flex"; 
+    }
+    
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+
+    function openPinModal() {
+        document.getElementById('reset-pin-field').value = '';
+        document.getElementById('modal-pin').style.display = 'flex';
+        document.getElementById('reset-pin-field').focus();
+    }
+
+    async function verifyPin() {
+        const pinField = document.getElementById('reset-pin-field');
+        if (pinField.value === '1122') {
+            closeModal('modal-pin');
+            showConfirm("WARNING", "This will delete ALL data locally AND in the Google Sheet. Proceed?", async () => {
+                const tId = showToast("Wiping cloud data...", "syncing");
+                
+                try {
+                    await fetch(SHEETS_WEB_APP_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ method: "RESET_ALL" })
+                    });
+
+                    storage = { devices: [], branch: [], hub: [], cctv: [] };
+                    save();
+                    ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
+                    
+                    removeToast(tId);
+                    showToast("System fully reset", "success");
+                } catch (e) {
+                    removeToast(tId);
+                    showToast("Cloud reset failed", "error");
+                }
+            });
+        } else {
+            showToast("Access Denied: Incorrect PIN", "error");
+            pinField.style.borderColor = 'var(--danger)';
+            pinField.value = '';
+            pinField.focus();
+        }
+    }
+
+    function editItem(key, index) {
+        const item = storage[key][index];
+        const modalId = `modal-${key === 'devices' ? 'device' : key}`;
+        const modal = document.getElementById(modalId);
+        const form = modal.querySelector('form');
+        Object.keys(item).forEach(k => { if(form.elements[k]) form.elements[k].value = item[k]; });
+        form.elements['editIndex'].value = index;
+        if(document.getElementById(`${key}-part-1`)) nextPart(key === 'devices' ? 'device' : key, 1);
+        modal.style.display = "flex";
+    }
+
+    function initForm(formId, key, modalId) {
+        const form = document.getElementById(formId);
+        if(!form) return;
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const fd = new FormData(form);
+            const data = Object.fromEntries(fd.entries());
+            const index = parseInt(data.editIndex);
+            const tId = showToast("Syncing asset...", "syncing");
+            if(index === -1) storage[key].unshift(data);
+            else storage[key][index] = data;
+            syncSheets(key, data, "SAVE").then(() => {
+                removeToast(tId);
+                showToast("Asset synced", "success");
+            });
+            save(); renderTable(key); closeModal(modalId);
+        };
+    }
+
+    function exportData() {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const year = now.getFullYear();
+        const fileName = `${month}-${day}-${year}-ASSET_INVENTORY_BACKUP.json`;
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(storage, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", fileName);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        if (document.getElementById('navLinks').classList.contains('mobile-open')) toggleMenu();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (imported.devices && imported.branch && imported.hub && imported.cctv) {
+                    showConfirm("Confirm Import", "Import all data and sync in background?", async () => {
+                        storage = imported;
+                        save();
+                        ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
+                        const tId = showToast("Cloud Syncing started...", "syncing");
+                        const allTasks = [];
+                        ['devices', 'branch', 'hub', 'cctv'].forEach(key => {
+                            storage[key].forEach(item => { allTasks.push(syncSheets(key, item, "SAVE")); });
+                        });
+                        Promise.all(allTasks).then(() => {
+                            removeToast(tId);
+                            showToast("Full sync complete", "success");
+                        }).catch(() => {
+                            removeToast(tId);
+                            showToast("Sync error", "error");
+                        });
+                    });
+                } else alert("Invalid JSON format.");
+            } catch (err) { alert("Error reading file."); }
+        };
+        reader.readAsText(file);
+    }
+
+    window.onload = () => {
+        initForm('form-device', 'devices', 'modal-device');
+        initForm('form-branch', 'branch', 'modal-branch');
+        initForm('form-hub', 'hub', 'modal-hub');
+        initForm('form-cctv', 'cctv', 'modal-cctv');
+        ['devices', 'branch', 'hub', 'cctv'].forEach(renderTable);
+        const hash = window.location.hash.substring(1);
+        if (hash && document.getElementById(hash)) openTab(hash);
+        else openTab('dashboard');
+        
+        document.getElementById('reset-pin-field').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyPin();
+        });
+    };
+</script>
+
+</body>
+</html>
