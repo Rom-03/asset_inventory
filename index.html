@@ -509,7 +509,7 @@
     let storage = JSON.parse(localStorage.getItem('myAssets')) || { devices: [], branch: [], hub: [], cctv: [] };
     let currentCctvFilter = 'admin'; 
 
-    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxwzhCVnCMTX0lwZuJiNyUyWn0CgbyDSPB_ZRGRNwvZdO3DoQT-0l5YDHRB8I3yx0lnfQ/exec';
+    const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxZry2yjLZBbN1uQY83y13XAm-7_8o1W8OzMPT4zteZmH8rydilgdQQCpX4zxQHyp7Q3A/exec';
 
     function save() { localStorage.setItem('myAssets', JSON.stringify(storage)); }
     
@@ -543,26 +543,32 @@
     }
 
     async function syncSheets(tabName, rowData, method = "SAVE") {
-        if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('YOUR_WEB_APP')) return;
-        
-        // Define unique ID for Sheets sync
-        let uid;
-        if (tabName === 'cctv') {
-            // For CCTV, combine code and type so Admin and User are saved separately
-            uid = `${rowData.code}-${rowData.type}`.trim();
-        } else {
-            uid = (rowData.serial || rowData.code).trim();
-        }
-
-        try {
-            await fetch(SHEETS_WEB_APP_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tab: tabName, uid: uid, row: rowData, method: method })
-            });
-        } catch (e) { console.error("Sync Error:", e); }
+    if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.includes('YOUR_WEB_APP')) return;
+    
+    let uid;
+    if (tabName === 'cctv') {
+        // Force lowercase to ensure AppScript finds the match
+        uid = `${rowData.code}-${rowData.type}`.trim().toLowerCase();
+    } else if (tabName === 'devices') {
+        uid = (rowData.serial).trim().toLowerCase();
+    } else {
+        uid = (rowData.code).trim().toLowerCase();
     }
+
+    try {
+        await fetch(SHEETS_WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                tab: tabName, 
+                uid: uid, 
+                row: rowData, 
+                method: method 
+            })
+        });
+    } catch (e) { console.error("Sync Error:", e); }
+}
 
     function showConfirm(title, msg, onConfirm) {
         document.getElementById('confirm-title').innerText = title;
@@ -783,23 +789,40 @@
     }
 
     function initForm(formId, key, modalId) {
-        const form = document.getElementById(formId);
-        if(!form) return;
-        form.onsubmit = (e) => {
-            e.preventDefault();
-            const fd = new FormData(form);
-            const data = Object.fromEntries(fd.entries());
-            const index = parseInt(data.editIndex);
-            const tId = showToast("Syncing asset...", "syncing");
-            if(index === -1) storage[key].unshift(data);
-            else storage[key][index] = data;
-            syncSheets(key, data, "SAVE").then(() => {
-                removeToast(tId);
-                showToast("Asset synced", "success");
-            });
-            save(); renderTable(key); closeModal(modalId);
-        };
-    }
+    const form = document.getElementById(formId);
+    if(!form) return;
+    form.onsubmit = (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const data = Object.fromEntries(fd.entries());
+        const index = parseInt(data.editIndex);
+        const tId = showToast("Syncing asset...", "syncing");
+        
+        let oldUid = null;
+
+        if(index === -1) {
+            storage[key].unshift(data);
+        } else {
+            // CAPTURE THE OLD ID BEFORE UPDATING STORAGE
+            const oldItem = storage[key][index];
+            if (key === 'cctv') oldUid = `${oldItem.code}-${oldItem.type}`;
+            else if (key === 'devices') oldUid = oldItem.serial;
+            else oldUid = oldItem.code;
+
+            storage[key][index] = data;
+        }
+
+        // Pass oldUid to syncSheets so it can find the row even if the Code changed
+        syncSheets(key, data, "SAVE", oldUid).then(() => {
+            removeToast(tId);
+            showToast("Asset synced", "success");
+        });
+
+        save(); 
+        renderTable(key); 
+        closeModal(modalId);
+    };
+}
 
     function exportData() {
         const now = new Date();
